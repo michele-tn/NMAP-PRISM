@@ -44,6 +44,28 @@ nav button.active{box-shadow:inset 3px 0 var(--accent);background:var(--accent-s
 nav button>span[data-i18n]{display:inline;width:auto;font-size:13px;white-space:normal;text-align:left}@media(max-width:800px){nav button>span[data-i18n]{font-size:12px;white-space:nowrap}}
 
 .brand>span:last-child{min-width:0}.brand small{max-width:155px;white-space:normal;letter-spacing:.45px;font-size:9px;line-height:1.5;margin-top:5px}
+
+/* Stable inventory layout and accessible, sticky table headers. */
+#content .table-wrap{max-height:min(65vh,720px);scrollbar-gutter:stable;position:relative;isolation:isolate;border:1px solid var(--line);border-radius:8px}
+#content .table-wrap:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+#content .table-wrap table{border-collapse:separate;border-spacing:0}
+#content .table-wrap thead th{position:sticky;top:0;z-index:3;background:var(--panel);box-shadow:0 1px 0 var(--line);vertical-align:middle}
+#content .table-wrap td:first-child,#content .table-wrap th:first-child{padding-left:12px}
+#content .matrix thead th:first-child,#content .heatmap thead th:first-child{z-index:4}
+#content .inventory-scroll{height:clamp(260px,65vh,720px)}
+#content .inventory-table{table-layout:fixed;min-width:0;max-width:none}
+.inventory-table th{padding-right:20px;overflow-wrap:anywhere}
+.inventory-table th button{max-width:100%;text-align:left;white-space:normal;min-height:28px}
+.inventory-table td{overflow-wrap:anywhere;white-space:normal}
+.inventory-tools{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:-5px 0 16px}
+.inventory-tools p{font-size:11px;color:var(--muted);max-width:780px}.inventory-tools button{font-size:12px;flex-shrink:0}
+.column-resizer{position:absolute;inset:0 -1px 0 auto;width:12px;cursor:col-resize;touch-action:none;z-index:5;display:block}
+.column-resizer:after{content:'';position:absolute;left:5px;top:20%;bottom:20%;width:2px;background:var(--line);border-radius:2px}
+.column-resizer:hover:after,.column-resizer:focus-visible:after{background:var(--accent);width:3px}
+.column-resizer:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;background:var(--accent-soft)}
+body.resizing-columns,body.resizing-columns *{cursor:col-resize!important;user-select:none!important}
+@media(max-width:800px){.inventory-tools{align-items:flex-start;flex-direction:column;gap:10px}.column-resizer{width:18px}.column-resizer:after{left:8px}.inventory-table th{padding-right:24px}}
+@media print{#content .table-wrap,#content .inventory-scroll{height:auto;max-height:none;overflow:visible;border:none}#content .table-wrap thead th{position:static;box-shadow:none}.inventory-tools,.column-resizer{display:none!important}#content .inventory-table{width:100%!important}#content .inventory-table col{width:auto!important}#content .table-wrap thead{display:table-header-group}}
 </style>
 </head>
 <body>
@@ -79,6 +101,11 @@ nav button>span[data-i18n]{display:inline;width:auto;font-size:13px;white-space:
   <script id="nmap-prism-data" type="application/json">null</script>
   <script>const NmapPrismI18n = (() => {
   const italian = {
+  "Resize columns by dragging their right edge. Arrow keys resize a focused divider.": "Ridimensiona le colonne trascinando il bordo destro. Usa le frecce sui separatori selezionati.",
+  "Reset column widths": "Ripristina larghezze",
+  "Resize column": "Ridimensiona colonna",
+  "Scrollable table": "Tabella scorrevole",
+  "Scroll within the table; column headers stay visible.": "Scorri nella tabella: le intestazioni restano visibili.",
   "ports": "porte",
   "NSE script": "Script NSE",
   "Overview": "Panoramica",
@@ -503,13 +530,29 @@ nav button>span[data-i18n]{display:inline;width:auto;font-size:13px;white-space:
   function pagination(total) {
     const pages = Math.max(1, Math.ceil(total / pageSize));
     state.page = Math.min(state.page, pages - 1);
-    return `<div class="pagination"><span>${total}${t(" rows · page ")}${state.page + 1} / ${pages}</span><button data-page="-1" ${state.page === 0 ? 'disabled' : ''}>${t("Previous")}</button><button data-page="1" ${state.page >= pages - 1 ? 'disabled' : ''}>${t("Next")}</button></div>`;
+    return `<div class="pagination"><span role="status" aria-live="polite">${total}${t(" rows · page ")}${state.page + 1} / ${pages}</span><button data-page="-1" ${state.page === 0 ? 'disabled' : ''}>${t("Previous")}</button><button data-page="1" ${state.page >= pages - 1 ? 'disabled' : ''}>${t("Next")}</button></div>`;
+  }
+
+  const inventoryColumns = [
+    { key: 'address', label: 'Host / IP', ratio: .20, min: 140, max: 640 },
+    { key: 'hostname', label: 'Hostname', ratio: .17, min: 130, max: 640 },
+    { key: 'os', label: 'Operating system', ratio: .29, min: 190, max: 1000 },
+    { key: 'ports', label: 'Filtered ports', ratio: .25, min: 170, max: 1000 },
+    { key: 'status', label: 'Host status', ratio: .09, min: 100, max: 400 }
+  ];
+  function inventoryHeader(compact) {
+    return inventoryColumns.map((column, index) => {
+      const title = escape(t(column.label));
+      const sort = column.key === 'status' ? title : `<button data-sort="${column.key}">${title}${state.sort === column.key ? (state.direction > 0 ? ' ↑' : ' ↓') : ''}</button>`;
+      const handle = compact ? '' : `<span class="column-resizer" role="separator" tabindex="0" aria-orientation="vertical" aria-label="${escape(t('Resize column'))}: ${title}" aria-valuemin="${column.min}" aria-valuemax="${column.max}" data-column="${index}"></span>`;
+      return `<th scope="col"${column.key !== 'status' ? ' aria-sort="' + (state.sort === column.key ? (state.direction > 0 ? 'ascending' : 'descending') : 'none') + '"' : ''}>${sort}${handle}</th>`;
+    }).join('');
   }
 
   function hostTable(compact = false) {
     const pager = compact ? '' : pagination(visible.length);
     const hosts = sortedHosts().slice(compact ? 0 : state.page * pageSize, compact ? 8 : (state.page + 1) * pageSize);
-    return `<section class="panel"><div class="section-title"><div><h3>${compact ? t("Hosts in scope") : t("Host inventory")}</h3><p>${t("Select an address to explore its full details.")}</p></div><small>${compact ? t("First 8 results") : t("50 rows per page")}</small></div><div class="table-wrap"><table><thead><tr>${[['address', 'Host / IP'], ['hostname', 'Hostname'], ['os', t("Operating system")], ['ports', t("Filtered ports")]].map(([key, title]) => `<th><button data-sort="${key}">${title}${state.sort === key ? (state.direction > 0 ? ' ↑' : ' ↓') : ''}</button></th>`).join('')}<th>${t("Host status")}</th></tr></thead><tbody>${hosts.map(host => `<tr><td>${hostButton(host)}<br><small class="muted">${escape(host.vendor)}</small></td><td>${escape(host.hostname || '—')}</td><td>${escape(host.os || t("Not detected"))}${host.accuracy ? `<br><small class="muted">${t("Nmap confidence ")}${escape(host.accuracy)}%</small>` : ''}</td><td>${host.ports.slice(0, 6).map(p => `<span class="tag ${p.state === 'open' ? 'open' : ''}">${escape(portKey(p))}</span>`).join('')}${host.ports.length > 6 ? `<span class="tag">+${host.ports.length - 6}</span>` : ''}</td><td><span class="tag">${escape(host.status)}</span></td></tr>`).join('')}</tbody></table></div>${pager}</section>`;
+    return `<section class="panel"><div class="section-title"><div><h3>${compact ? t("Hosts in scope") : t("Host inventory")}</h3><p>${t("Select an address to explore its full details.")}</p></div><small>${compact ? t("First 8 results") : t("50 rows per page")}</small></div>${compact ? '' : `<div class="inventory-tools"><p id="inventory-help">${t("Resize columns by dragging their right edge. Arrow keys resize a focused divider.")} ${t("Scroll within the table; column headers stay visible.")}</p><button id="reset-columns">${t("Reset column widths")}</button></div>`}<div class="table-wrap ${compact ? '' : 'inventory-scroll'}"><table class="${compact ? '' : 'inventory-table'}">${compact ? '' : `<colgroup>${inventoryColumns.map(() => '<col>').join('')}</colgroup>`}<thead><tr>${inventoryHeader(compact)}</tr></thead><tbody>${hosts.map(host => `<tr><td>${hostButton(host)}<br><small class="muted">${escape(host.vendor)}</small></td><td>${escape(host.hostname || '—')}</td><td>${escape(host.os || t("Not detected"))}${host.accuracy ? `<br><small class="muted">${t("Nmap confidence ")}${escape(host.accuracy)}%</small>` : ''}</td><td>${host.ports.slice(0, 6).map(p => `<span class="tag ${p.state === 'open' ? 'open' : ''}">${escape(portKey(p))}</span>`).join('')}${host.ports.length > 6 ? `<span class="tag">+${host.ports.length - 6}</span>` : ''}</td><td><span class="tag">${escape(host.status)}</span></td></tr>`).join('')}</tbody></table></div>${pager}</section>`;
   }
 
   function serviceTable() {
@@ -571,7 +614,7 @@ nav button>span[data-i18n]{display:inline;width:auto;font-size:13px;white-space:
     $('#print').disabled = !current();
     $('#clear').disabled = !state.scans.length;
     if (!current()) { $('#content').innerHTML = `<div class="empty"><strong>${t("Every network tells a story.")}</strong>${t("Import a scan to get started, or open the demo with synthetic data.")}<p class="note">${t("Tip: export Nmap results as XML with the -oX option.")}</p></div>`; return; }
-    if (state.view === 'compare') { $('#content').innerHTML = compareScans(); return; }
+    if (state.view === 'compare') { $('#content').innerHTML = compareScans(); enhanceTables(); return; }
     if (!visible.length) { $('#content').innerHTML = `<div class="empty"><strong>${t("No results match these filters.")}</strong>${t("Try resetting the filters or selecting all port states.")}</div>`; return; }
     let html = '';
     if (state.view === 'overview') {
@@ -582,7 +625,67 @@ nav button>span[data-i18n]{display:inline;width:auto;font-size:13px;white-space:
     else if (state.view === 'matrix') html = serviceHeatmap() + matrix();
     else if (state.view === 'graph') html = graph();
     $('#content').innerHTML = html;
+    enhanceTables();
     if (state.view === 'graph') enhanceGraph();
+  }
+
+  function enhanceTables() {
+    document.querySelectorAll('#content .table-wrap').forEach(wrapper => {
+      wrapper.tabIndex = 0;
+      wrapper.setAttribute('role', 'region');
+      wrapper.setAttribute('aria-label', t('Scrollable table') + ': ' + t(titles[state.view]));
+    });
+    const table = $('.inventory-table');
+    if (!table) return;
+    const wrapper = table.parentElement;
+    wrapper.setAttribute('aria-describedby', 'inventory-help');
+    const defaults = () => inventoryColumns.map(column => Math.max(column.min, Math.round(Math.max(900, wrapper.clientWidth) * column.ratio)));
+    if (!state.inventoryWidths) state.inventoryWidths = defaults();
+    const apply = () => {
+      table.style.width = state.inventoryWidths.reduce((total, width) => total + width, 0) + 'px';
+      table.querySelectorAll('col').forEach((col, index) => { col.style.width = state.inventoryWidths[index] + 'px'; });
+      table.querySelectorAll('.column-resizer').forEach((handle, index) => {
+        handle.setAttribute('aria-valuenow', state.inventoryWidths[index]);
+        handle.setAttribute('aria-valuetext', state.inventoryWidths[index] + ' px');
+      });
+    };
+    const resize = (index, width) => {
+      state.inventoryWidths[index] = Math.min(inventoryColumns[index].max, Math.max(inventoryColumns[index].min, Math.round(width)));
+      apply();
+    };
+    apply();
+    $('#reset-columns').addEventListener('click', () => { state.inventoryWidths = defaults(); apply(); });
+    table.querySelectorAll('.column-resizer').forEach((handle, index) => {
+      let drag = null;
+      const stop = () => {
+        drag = null;
+        document.body.classList.remove('resizing-columns');
+        if (handle.hasPointerCapture(handle.pointerId)) handle.releasePointerCapture(handle.pointerId);
+      };
+      handle.addEventListener('click', event => event.stopPropagation());
+      handle.addEventListener('pointerdown', event => {
+        if (event.button !== 0) return;
+        event.preventDefault(); event.stopPropagation();
+        handle.focus({ preventScroll: true });
+        drag = { x: event.clientX, width: state.inventoryWidths[index] };
+        handle.pointerId = event.pointerId;
+        handle.setPointerCapture(event.pointerId);
+        document.body.classList.add('resizing-columns');
+      });
+      handle.addEventListener('pointermove', event => { if (drag) resize(index, drag.width + event.clientX - drag.x); });
+      handle.addEventListener('pointerup', stop);
+      handle.addEventListener('pointercancel', () => { if (drag) resize(index, drag.width); stop(); });
+      handle.addEventListener('lostpointercapture', stop);
+      handle.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && drag) { resize(index, drag.width); stop(); return; }
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault(); event.stopPropagation();
+        if (event.key === 'Home') resize(index, inventoryColumns[index].min);
+        else if (event.key === 'End') resize(index, inventoryColumns[index].max);
+        else resize(index, state.inventoryWidths[index] + (event.key === 'ArrowRight' ? 1 : -1) * (event.shiftKey ? 40 : 10));
+      });
+      handle.addEventListener('dblclick', () => resize(index, defaults()[index]));
+    });
   }
 
   function enhanceGraph() {
@@ -634,7 +737,7 @@ nav button>span[data-i18n]{display:inline;width:auto;font-size:13px;white-space:
   function exportHtml() {
     visible = filterHosts();
     const root = document.documentElement.cloneNode(true);
-    root.querySelector('#nmap-prism-data').textContent = JSON.stringify({ schema: 'nmap-prism/1', scan: filteredScan() }).replace(/</g, '\\u003c');
+    root.querySelector('#nmap-prism-data').textContent = JSON.stringify({ schema: 'nmap-prism/1', scan: filteredScan(), inventoryWidths: state.inventoryWidths }).replace(/</g, '\\u003c');
     root.querySelector('#content').innerHTML = '';
     root.querySelector('#filter-chips').innerHTML = '';
     root.querySelector('#notice').textContent = '';
@@ -683,7 +786,14 @@ nav button>span[data-i18n]{display:inline;width:auto;font-size:13px;white-space:
     if (target.dataset.view) { state.view = target.dataset.view; state.page = 0; render(); }
     if (target.dataset.host !== undefined) showHost(Number(target.dataset.host));
     if (target.dataset.sort) { state.direction = state.sort === target.dataset.sort ? -state.direction : 1; state.sort = target.dataset.sort; render(); }
-    if (target.dataset.page) { state.page = Math.max(0, state.page + Number(target.dataset.page)); render(); }
+    if (target.dataset.page) {
+      const direction = Number(target.dataset.page);
+      const scrollLeft = $('.inventory-scroll')?.scrollLeft || 0;
+      state.page = Math.max(0, state.page + direction); render();
+      if ($('.inventory-scroll')) $('.inventory-scroll').scrollLeft = scrollLeft;
+      const nextFocus = document.querySelector(`[data-page="${direction}"]:not(:disabled)`) || document.querySelector('[data-page]:not(:disabled)');
+      nextFocus?.focus({ preventScroll: true });
+    }
     if (target.dataset.removeFilter) { if (target.dataset.removeFilter === 'exact-port') state.exactPort = ''; else $(`#${target.dataset.removeFilter}`).value = ''; state.page = 0; render(); }
     if (target.dataset.state !== undefined) {
       const select = $('#port-state');
@@ -745,6 +855,9 @@ nav button>span[data-i18n]{display:inline;width:auto;font-size:13px;white-space:
     const embedded = parseJson($('#nmap-prism-data').textContent);
     if (embedded?.schema === 'nmap-prism/1') {
       state.scans = [validateScan(embedded.scan)];
+      if (Array.isArray(embedded.inventoryWidths) && embedded.inventoryWidths.length === inventoryColumns.length && embedded.inventoryWidths.every(Number.isFinite)) {
+        state.inventoryWidths = embedded.inventoryWidths.map((width, index) => Math.round(Math.min(inventoryColumns[index].max, Math.max(inventoryColumns[index].min, width))));
+      }
       $('#port-state').value = '';
       notify(t("Portable report: contains the scope selected at export time."));
     }
