@@ -50,6 +50,8 @@ nav button>span[data-i18n]{display:inline;width:auto;font-size:13px;white-space:
 #content .table-wrap:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 #content .table-wrap table{border-collapse:separate;border-spacing:0}
 #content .table-wrap thead th{position:sticky;top:0;z-index:3;background:var(--panel);box-shadow:0 1px 0 var(--line);vertical-align:middle}
+#content .table-wrap thead th{position:sticky}
+#content .table-wrap thead th:has(.column-resizer){position:sticky}
 #content .table-wrap td:first-child,#content .table-wrap th:first-child{padding-left:12px}
 #content .matrix thead th:first-child,#content .heatmap thead th:first-child{z-index:4}
 #content .inventory-scroll{height:clamp(260px,65vh,720px)}
@@ -63,6 +65,7 @@ nav button>span[data-i18n]{display:inline;width:auto;font-size:13px;white-space:
 .column-resizer:after{content:'';position:absolute;left:5px;top:20%;bottom:20%;width:2px;background:var(--line);border-radius:2px}
 .column-resizer:hover:after,.column-resizer:focus-visible:after{background:var(--accent);width:3px}
 .column-resizer:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;background:var(--accent-soft)}
+.table-wrap thead th:has(.column-resizer){padding-right:24px}.table-wrap thead th:has(.column-resizer) .column-resizer{opacity:.62}.table-wrap thead th:has(.column-resizer):hover .column-resizer,.table-wrap thead th:has(.column-resizer):focus-within .column-resizer{opacity:1}
 body.resizing-columns,body.resizing-columns *{cursor:col-resize!important;user-select:none!important}
 @media(max-width:800px){.inventory-tools{align-items:flex-start;flex-direction:column;gap:10px}.column-resizer{width:18px}.column-resizer:after{left:8px}.inventory-table th{padding-right:24px}}
 @media print{#content .table-wrap,#content .inventory-scroll{height:auto;max-height:none;overflow:visible;border:none}#content .table-wrap thead th{position:static;box-shadow:none}.inventory-tools,.column-resizer{display:none!important}#content .inventory-table{width:100%!important}#content .inventory-table col{width:auto!important}#content .table-wrap thead{display:table-header-group}}
@@ -298,7 +301,7 @@ body.resizing-columns,body.resizing-columns *{cursor:col-resize!important;user-s
   const portKey = port => `${port.number}/${port.protocol}`;
   const compareText = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true });
   const titles = { overview: 'Overview', hosts: 'Host inventory', services: 'Services and ports', matrix: 'Port matrix', graph: 'Relationships', compare: 'Scan comparison' };
-  const state = { scans: [], selected: 0, view: 'overview', page: 0, sort: 'address', direction: 1, baseline: 0 };
+  const state = { scans: [], selected: 0, view: 'overview', page: 0, sort: 'address', direction: 1, baseline: 0, tableWidths: {} };
   const pageSize = 50;
   let visible = [];
   let importing = false;
@@ -400,15 +403,20 @@ body.resizing-columns,body.resizing-columns *{cursor:col-resize!important;user-s
         if (file.size > 20 * 1024 * 1024) throw new Error(t("File size limit: 20 MB."));
         const text = await file.text();
         let scan;
+        let importedLayout = null;
         if (/\.json$/i.test(file.name)) {
           const data = parseJson(text);
           if (!['nmap-prism/1', 'scanvista/1', 'nmap-atlas/1', 'nmap-observatory/1'].includes(data.schema)) throw new Error(t("A JSON file exported by Nmap Prism is required."));
           scan = validateScan(data.scan);
           scan.name = file.name;
+          importedLayout = data.tableWidths || null;
+          if (Array.isArray(data.inventoryWidths)) importedLayout = { ...(importedLayout || {}), inventory: data.inventoryWidths };
         } else if (text.trimStart().startsWith('<')) scan = parseXml(text, file.name);
         else scan = parseGnmap(text, file.name);
         state.scans.push(scan);
         state.selected = state.scans.length - 1;
+        if (importedLayout && typeof importedLayout === 'object') state.tableWidths = { ...state.tableWidths, ...importedLayout };
+        if (Array.isArray(importedLayout?.inventory)) state.inventoryWidths = importedLayout.inventory;
         imported++;
       } catch (error) { errors.push(`${file.name}: ${error.message}`); }
     }
@@ -635,55 +643,50 @@ body.resizing-columns,body.resizing-columns *{cursor:col-resize!important;user-s
       wrapper.setAttribute('role', 'region');
       wrapper.setAttribute('aria-label', t('Scrollable table') + ': ' + t(titles[state.view]));
     });
-    const table = $('.inventory-table');
-    if (!table) return;
+    const inventory = $('.inventory-table');
+    if (inventory) {
+      inventory.parentElement.setAttribute('aria-describedby', 'inventory-help');
+      enhanceResizableTable(inventory, 'inventory', inventoryColumns, () => inventoryColumns.map(column => Math.max(column.min, Math.round(Math.max(900, inventory.parentElement.clientWidth) * column.ratio))));
+      $('#reset-columns').addEventListener('click', () => { state.inventoryWidths = inventoryColumns.map(column => Math.max(column.min, Math.round(Math.max(900, inventory.parentElement.clientWidth) * column.ratio))); state.tableWidths.inventory = state.inventoryWidths; enhanceResizableTable(inventory, 'inventory', inventoryColumns, () => state.inventoryWidths); });
+    }
+    document.querySelectorAll('#content table:not(.inventory-table)').forEach((table, index) => {
+      const columns = [...table.querySelectorAll('thead th')].map((_, columnIndex) => ({ key: String(columnIndex), label: '', min: table.classList.contains('matrix') || table.classList.contains('heatmap') ? 65 : 110, max: 900 }));
+      enhanceResizableTable(table, `${state.view}-${table.className || index}`, columns, () => columns.map(column => Math.max(column.min, Math.round(Math.max(900, table.parentElement.clientWidth) / columns.length))));
+    });
+  }
+
+  function enhanceResizableTable(table, key, columns, defaultWidths) {
     const wrapper = table.parentElement;
-    wrapper.setAttribute('aria-describedby', 'inventory-help');
-    const defaults = () => inventoryColumns.map(column => Math.max(column.min, Math.round(Math.max(900, wrapper.clientWidth) * column.ratio)));
-    if (!state.inventoryWidths) state.inventoryWidths = defaults();
+    table.style.tableLayout = 'fixed';
+    if (!table.querySelector('colgroup')) table.insertAdjacentHTML('afterbegin', `<colgroup>${columns.map(() => '<col>').join('')}</colgroup>`);
+    table.querySelectorAll('thead th').forEach((header, index) => {
+      if (header.querySelector('.column-resizer')) return;
+      const handle = document.createElement('span');
+      handle.className = 'column-resizer'; handle.setAttribute('role', 'separator'); handle.setAttribute('tabindex', '0'); handle.setAttribute('aria-orientation', 'vertical'); handle.dataset.column = index;
+      handle.setAttribute('aria-label', `${t('Resize column')}: ${header.textContent.trim()}`);
+      header.append(handle);
+    });
+    const defaults = () => defaultWidths().map((width, index) => Math.min(columns[index].max, Math.max(columns[index].min, Math.round(width))));
+    const stored = state.tableWidths[key];
+    const widths = stored?.length === columns.length ? stored : (key === 'inventory' && state.inventoryWidths?.length === columns.length ? state.inventoryWidths : defaults());
+    state.tableWidths[key] = widths;
+    if (key === 'inventory') state.inventoryWidths = widths;
     const apply = () => {
-      table.style.width = state.inventoryWidths.reduce((total, width) => total + width, 0) + 'px';
-      table.querySelectorAll('col').forEach((col, index) => { col.style.width = state.inventoryWidths[index] + 'px'; });
-      table.querySelectorAll('.column-resizer').forEach((handle, index) => {
-        handle.setAttribute('aria-valuenow', state.inventoryWidths[index]);
-        handle.setAttribute('aria-valuetext', state.inventoryWidths[index] + ' px');
-      });
+      const safeWidths = state.tableWidths[key];
+      table.style.width = safeWidths.reduce((total, width) => total + width, 0) + 'px';
+      table.querySelectorAll('col').forEach((col, index) => { col.style.width = safeWidths[index] + 'px'; });
+      table.querySelectorAll('.column-resizer').forEach((handle, index) => { handle.setAttribute('aria-valuemin', columns[index].min); handle.setAttribute('aria-valuemax', columns[index].max); handle.setAttribute('aria-valuenow', safeWidths[index]); handle.setAttribute('aria-valuetext', `${safeWidths[index]} px`); });
     };
-    const resize = (index, width) => {
-      state.inventoryWidths[index] = Math.min(inventoryColumns[index].max, Math.max(inventoryColumns[index].min, Math.round(width)));
-      apply();
-    };
+    const resize = (index, width) => { const current = state.tableWidths[key]; current[index] = Math.min(columns[index].max, Math.max(columns[index].min, Math.round(width))); if (key === 'inventory') state.inventoryWidths = current; apply(); };
     apply();
-    $('#reset-columns').addEventListener('click', () => { state.inventoryWidths = defaults(); apply(); });
     table.querySelectorAll('.column-resizer').forEach((handle, index) => {
       let drag = null;
-      const stop = () => {
-        drag = null;
-        document.body.classList.remove('resizing-columns');
-        if (handle.hasPointerCapture(handle.pointerId)) handle.releasePointerCapture(handle.pointerId);
-      };
+      const stop = () => { drag = null; document.body.classList.remove('resizing-columns'); if (handle.hasPointerCapture(handle._pointerId)) handle.releasePointerCapture(handle._pointerId); };
       handle.addEventListener('click', event => event.stopPropagation());
-      handle.addEventListener('pointerdown', event => {
-        if (event.button !== 0) return;
-        event.preventDefault(); event.stopPropagation();
-        handle.focus({ preventScroll: true });
-        drag = { x: event.clientX, width: state.inventoryWidths[index] };
-        handle.pointerId = event.pointerId;
-        handle.setPointerCapture(event.pointerId);
-        document.body.classList.add('resizing-columns');
-      });
+      handle.addEventListener('pointerdown', event => { if (event.button !== 0) return; event.preventDefault(); event.stopPropagation(); handle.focus({ preventScroll: true }); drag = { x: event.clientX, width: state.tableWidths[key][index] }; handle._pointerId = event.pointerId; handle.setPointerCapture(event.pointerId); document.body.classList.add('resizing-columns'); });
       handle.addEventListener('pointermove', event => { if (drag) resize(index, drag.width + event.clientX - drag.x); });
-      handle.addEventListener('pointerup', stop);
-      handle.addEventListener('pointercancel', () => { if (drag) resize(index, drag.width); stop(); });
-      handle.addEventListener('lostpointercapture', stop);
-      handle.addEventListener('keydown', event => {
-        if (event.key === 'Escape' && drag) { resize(index, drag.width); stop(); return; }
-        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-        event.preventDefault(); event.stopPropagation();
-        if (event.key === 'Home') resize(index, inventoryColumns[index].min);
-        else if (event.key === 'End') resize(index, inventoryColumns[index].max);
-        else resize(index, state.inventoryWidths[index] + (event.key === 'ArrowRight' ? 1 : -1) * (event.shiftKey ? 40 : 10));
-      });
+      handle.addEventListener('pointerup', stop); handle.addEventListener('pointercancel', () => { if (drag) resize(index, drag.width); stop(); }); handle.addEventListener('lostpointercapture', stop);
+      handle.addEventListener('keydown', event => { if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return; event.preventDefault(); event.stopPropagation(); if (event.key === 'Home') resize(index, columns[index].min); else if (event.key === 'End') resize(index, columns[index].max); else resize(index, state.tableWidths[key][index] + (event.key === 'ArrowRight' ? 1 : -1) * (event.shiftKey ? 40 : 10)); });
       handle.addEventListener('dblclick', () => resize(index, defaults()[index]));
     });
   }
@@ -737,7 +740,7 @@ body.resizing-columns,body.resizing-columns *{cursor:col-resize!important;user-s
   function exportHtml() {
     visible = filterHosts();
     const root = document.documentElement.cloneNode(true);
-    root.querySelector('#nmap-prism-data').textContent = JSON.stringify({ schema: 'nmap-prism/1', scan: filteredScan(), inventoryWidths: state.inventoryWidths }).replace(/</g, '\\u003c');
+    root.querySelector('#nmap-prism-data').textContent = JSON.stringify({ schema: 'nmap-prism/1', scan: filteredScan(), inventoryWidths: state.inventoryWidths, tableWidths: state.tableWidths }).replace(/</g, '\\u003c');
     root.querySelector('#content').innerHTML = '';
     root.querySelector('#filter-chips').innerHTML = '';
     root.querySelector('#notice').textContent = '';
@@ -849,7 +852,7 @@ body.resizing-columns,body.resizing-columns *{cursor:col-resize!important;user-s
   $('#clear').addEventListener('click', () => { state.scans = []; state.selected = 0; state.baseline = 0; resetFilters(); updateScans(); notify(t("Session data cleared. You can reload the original files.")); });
   $('#export-html').addEventListener('click', exportHtml);
   $('#export-csv').addEventListener('click', exportCsv);
-  $('#export-json').addEventListener('click', () => download(JSON.stringify({ schema: 'nmap-prism/1', scan: filteredScan() }, null, 2), 'application/json', 'nmap-prism.json'));
+  $('#export-json').addEventListener('click', () => download(JSON.stringify({ schema: 'nmap-prism/1', scan: filteredScan(), inventoryWidths: state.inventoryWidths, tableWidths: state.tableWidths }, null, 2), 'application/json', 'nmap-prism.json'));
   $('#print').addEventListener('click', () => { notify(t("Printing includes only the current view and visible results page. Use the HTML report to preserve all filtered results.")); window.print(); });
   try {
     const embedded = parseJson($('#nmap-prism-data').textContent);
@@ -857,7 +860,9 @@ body.resizing-columns,body.resizing-columns *{cursor:col-resize!important;user-s
       state.scans = [validateScan(embedded.scan)];
       if (Array.isArray(embedded.inventoryWidths) && embedded.inventoryWidths.length === inventoryColumns.length && embedded.inventoryWidths.every(Number.isFinite)) {
         state.inventoryWidths = embedded.inventoryWidths.map((width, index) => Math.round(Math.min(inventoryColumns[index].max, Math.max(inventoryColumns[index].min, width))));
+        state.tableWidths.inventory = state.inventoryWidths;
       }
+      if (embedded.tableWidths && typeof embedded.tableWidths === 'object') state.tableWidths = { ...state.tableWidths, ...embedded.tableWidths };
       $('#port-state').value = '';
       notify(t("Portable report: contains the scope selected at export time."));
     }
