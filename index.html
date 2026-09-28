@@ -117,6 +117,10 @@ body.resizing-columns,body.resizing-columns *{cursor:col-resize!important;user-s
   "Port matrix": "Matrice porte",
   "Relationships": "Relazioni",
   "Scan comparison": "Confronto scansioni",
+  "Aggregated port XML details": "Dettagli XML delle porte aggregate",
+  "Complete host XML metadata": "Metadati XML completi dell’host",
+  "Complete port XML details": "Dettagli XML completi della porta",
+  "Scan XML metadata": "Metadati XML della scansione",
   "XML entity declarations are not supported.": "Le dichiarazioni di entità XML non sono supportate.",
   "Invalid XML: an Nmap document with an nmaprun root is required.": "XML non valido: è richiesto un documento Nmap con radice nmaprun.",
   "No gnmap hosts recognized. Plain .nmap text output is not supported.": "Nessun host gnmap riconosciuto. Il testo .nmap normale non è supportato.",
@@ -323,8 +327,48 @@ body.resizing-columns,body.resizing-columns *{cursor:col-resize!important;user-s
     }));
   }
 
+  // Inspect only the prolog, never NSE text or CDATA. Nmap supplies explicit
+  // values; discard its DTD declaration without resolving external resources.
+  function withoutDoctype(text) {
+    let offset = 0;
+    while (offset < text.length) {
+      const space = text.slice(offset).match(/^\s+/);
+      if (space) { offset += space[0].length; continue; }
+      const endToken = text.startsWith('<!--', offset) ? '-->' : text.startsWith('<?', offset) ? '?>' : '';
+      if (endToken) {
+        const end = text.indexOf(endToken, offset + 2);
+        if (end < 0) return text;
+        offset = end + endToken.length; continue;
+      }
+      if (!text.startsWith('<!DOCTYPE', offset)) return text;
+      let quote = '', depth = 0;
+      for (let i = offset + 9; i < text.length; i++) {
+        const char = text[i];
+        if (quote) { if (char === quote) quote = ''; continue; }
+        if (text.startsWith('<!--', i)) {
+          const end = text.indexOf('-->', i + 4);
+          if (end < 0) return text;
+          i = end + 2; continue;
+        }
+        if (char === '"' || char === "'") quote = char;
+        else if (char === '[') depth++;
+        else if (char === ']') depth--;
+        else if (char === '>' && depth === 0) return text.slice(0, offset) + text.slice(i + 1);
+      }
+      return text;
+    }
+    return text;
+  }
+
+  function xmlDetails(node, excluded = []) {
+    if (!node) return '';
+    const copy = node.cloneNode(true);
+    [...copy.children].filter(child => excluded.includes(child.nodeName)).forEach(child => child.remove());
+    return new XMLSerializer().serializeToString(copy);
+  }
+
   function parseXml(text, name) {
-    if (/<!ENTITY/i.test(text) || /<!DOCTYPE[^>]*\[/i.test(text)) throw new Error(t("XML entity declarations are not supported."));
+    text = withoutDoctype(text);
     const doc = new DOMParser().parseFromString(text, 'application/xml');
     if (doc.querySelector('parsererror') || doc.documentElement.nodeName !== 'nmaprun') throw new Error(t("Invalid XML: an Nmap document with an nmaprun root is required."));
     const hosts = list(doc, 'nmaprun > host').map((node, index) => {
@@ -337,16 +381,18 @@ body.resizing-columns,body.resizing-columns *{cursor:col-resize!important;user-s
         addresses: addresses.map(a => attr(a, 'addr')), hostname: list(node, 'hostnames > hostname').map(h => attr(h, 'name')).join(', '),
         status: attr(node.querySelector(':scope > status'), 'state') || 'unknown',
         mac: attr(mac, 'addr'), vendor: attr(mac, 'vendor'), os: attr(osMatches[0], 'name'), accuracy: attr(osMatches[0], 'accuracy'),
+        xml: xmlDetails(node, ['ports']),
+        portSummaryXml: xmlDetails(node.querySelector(':scope > ports'), ['port']),
         scripts: parseScripts(node, ':scope > hostscript > script'),
         extra: list(node, 'ports > extraports').map(p => `${attr(p, 'count')} ports ${attr(p, 'state')}`).join('; '),
         ports: list(node, 'ports > port').map(port => {
           const service = port.querySelector('service');
-          return { number: Number(attr(port, 'portid')), protocol: attr(port, 'protocol'), state: attr(port.querySelector('state'), 'state'), reason: attr(port.querySelector('state'), 'reason'), service: attr(service, 'name') || 'unknown', product: attr(service, 'product'), version: attr(service, 'version'), info: attr(service, 'extrainfo'), tunnel: attr(service, 'tunnel'), cpes: service ? list(service, 'cpe').map(c => c.textContent) : [], scripts: parseScripts(port, ':scope > script') };
+          return { xml: xmlDetails(port), number: Number(attr(port, 'portid')), protocol: attr(port, 'protocol'), state: attr(port.querySelector('state'), 'state'), reason: attr(port.querySelector('state'), 'reason'), service: attr(service, 'name') || 'unknown', product: attr(service, 'product'), version: attr(service, 'version'), info: attr(service, 'extrainfo'), tunnel: attr(service, 'tunnel'), cpes: service ? list(service, 'cpe').map(c => c.textContent) : [], scripts: parseScripts(port, ':scope > script') };
         })
       };
     });
     const root = doc.documentElement;
-    return { name, format: 'xml', date: attr(root, 'startstr'), command: attr(root, 'args'), hosts };
+    return { xml: xmlDetails(root, ['host']), name, format: 'xml', date: attr(root, 'startstr'), command: attr(root, 'args'), hosts };
   }
 
   function parseGnmap(text, name) {
@@ -378,14 +424,14 @@ body.resizing-columns,body.resizing-columns *{cursor:col-resize!important;user-s
     const scripts = values => Array.isArray(values) ? values.map(s => ({ id: str(s?.id), output: str(s?.output) })) : [];
     const strings = values => Array.isArray(values) ? values.filter(v => typeof v === 'string') : [];
     return {
-      name: scan.name, format: str(scan.format), date: str(scan.date), command: str(scan.command),
+      xml: str(scan.xml), name: scan.name, format: str(scan.format), date: str(scan.date), command: str(scan.command),
       hosts: scan.hosts.map(host => {
         if (!host || typeof host.address !== 'string' || !Array.isArray(host.ports)) throw new Error(t("Invalid JSON host."));
         return {
-          address: host.address, addresses: strings(host.addresses), hostname: str(host.hostname), status: str(host.status), mac: str(host.mac), vendor: str(host.vendor), os: str(host.os), accuracy: str(host.accuracy), extra: str(host.extra), scripts: scripts(host.scripts),
+          xml: str(host.xml), portSummaryXml: str(host.portSummaryXml), address: host.address, addresses: strings(host.addresses), hostname: str(host.hostname), status: str(host.status), mac: str(host.mac), vendor: str(host.vendor), os: str(host.os), accuracy: str(host.accuracy), extra: str(host.extra), scripts: scripts(host.scripts),
           ports: host.ports.map(port => {
             if (!port || !Number.isInteger(port.number) || port.number < 0 || port.number > 65535) throw new Error(t("Invalid port."));
-            return { number: port.number, protocol: str(port.protocol), state: str(port.state), reason: str(port.reason), service: str(port.service), product: str(port.product), version: str(port.version), info: str(port.info), tunnel: str(port.tunnel), cpes: strings(port.cpes), scripts: scripts(port.scripts) };
+            return { xml: str(port.xml), number: port.number, protocol: str(port.protocol), state: str(port.state), reason: str(port.reason), service: str(port.service), product: str(port.product), version: str(port.version), info: str(port.info), tunnel: str(port.tunnel), cpes: strings(port.cpes), scripts: scripts(port.scripts) };
           })
         };
       })
@@ -620,6 +666,8 @@ body.resizing-columns,body.resizing-columns *{cursor:col-resize!important;user-s
     $('#scope').textContent = state.view === 'compare' ? t("Comparing complete scans · report exports are disabled in this view") : `${visible.length} / ${current()?.hosts.length || 0} host · ${visible.reduce((n, host) => n + host.ports.length, 0)}${t(" explicit ports in the current filters · exports include this scope")}`;
     for (const id of ['export-html', 'export-csv', 'export-json']) $(`#${id}`).disabled = !current() || !visible.length || state.view === 'compare';
     $('#print').disabled = !current();
+    $('#scan-xml-details')?.remove();
+    if (current()?.xml) $('#scope').insertAdjacentHTML('afterend', `<details id="scan-xml-details" class="panel"><summary>${t('Scan XML metadata')}</summary><pre>${escape(current().xml)}</pre></details>`);
     $('#clear').disabled = !state.scans.length;
     if (!current()) { $('#content').innerHTML = `<div class="empty"><strong>${t("Every network tells a story.")}</strong>${t("Import a scan to get started, or open the demo with synthetic data.")}<p class="note">${t("Tip: export Nmap results as XML with the -oX option.")}</p></div>`; return; }
     if (state.view === 'compare') { $('#content').innerHTML = compareScans(); enhanceTables(); return; }
@@ -720,15 +768,16 @@ body.resizing-columns,body.resizing-columns *{cursor:col-resize!important;user-s
     const host = current()?.hosts[index];
     if (!host) return;
     state.activeHost = index;
+    const xmlPanel = (title, xml) => xml ? `<details><summary>${escape(t(title))}</summary><pre>${escape(xml)}</pre></details>` : '';
     const scriptDetails = scripts => scripts.map(script => `<details><summary>${escape(script.id || t("NSE script"))}</summary><pre>${escape(script.output)}</pre></details>`).join('');
     $('#host-title').textContent = host.address;
-    $('#host-detail').innerHTML = `<p class="note">${t("Full host details from the selected scan; filters do not apply to this dialog.")}</p><div class="detail-meta">${[host.hostname, host.os, host.vendor, host.mac, host.status, ...host.addresses].filter(Boolean).map(value => `<span class="tag">${escape(value)}</span>`).join('')}</div>${host.extra ? `<p class="note">${t("Nmap summary: ")}${escape(host.extra.replace(/(\d+) (?:ports|porte) /g, (_, count) => count + ' ' + t('ports') + ' '))}${t(". Individual port numbers are not available for these aggregated ports.")}</p>` : ''}${scriptDetails(host.scripts)}${host.ports.map(port => `<article class="host-port"><h3><span class="mono">${escape(portKey(port))}</span> ${escape(port.service)} <span class="tag ${port.state === 'open' ? 'open' : ''}">${escape(port.state)}</span>${port.tunnel ? '<span class="tag">TLS</span>' : ''}</h3><p>${escape([port.product, port.version, port.info].filter(Boolean).join(' ') || t("Version not detected"))}</p><p>${escape(port.cpes.join(' · '))}</p>${scriptDetails(port.scripts)}</article>`).join('') || `<p>${t("No explicit ports.")}</p>`}`;
+    $('#host-detail').innerHTML = `<p class="note">${t("Full host details from the selected scan; filters do not apply to this dialog.")}</p><div class="detail-meta">${[host.hostname, host.os, host.vendor, host.mac, host.status, ...host.addresses].filter(Boolean).map(value => `<span class="tag">${escape(value)}</span>`).join('')}</div>${host.extra ? `<p class="note">${t("Nmap summary: ")}${escape(host.extra.replace(/(\d+) (?:ports|porte) /g, (_, count) => count + ' ' + t('ports') + ' '))}${t(". Individual port numbers are not available for these aggregated ports.")}</p>` : ''}${xmlPanel('Complete host XML metadata', host.xml)}${xmlPanel('Aggregated port XML details', host.portSummaryXml)}${xmlPanel('Scan XML metadata', current().xml)}${scriptDetails(host.scripts)}${host.ports.map(port => `<article class="host-port"><h3><span class="mono">${escape(portKey(port))}</span> ${escape(port.service)} <span class="tag ${port.state === 'open' ? 'open' : ''}">${escape(port.state)}</span>${port.tunnel ? '<span class="tag">TLS</span>' : ''}</h3><p>${escape([port.product, port.version, port.info].filter(Boolean).join(' ') || t("Version not detected"))}</p><p>${escape(port.cpes.join(' · '))}</p>${scriptDetails(port.scripts)}${xmlPanel('Complete port XML details', port.xml)}</article>`).join('') || `<p>${t("No explicit ports.")}</p>`}`;
     if (!$('#host-dialog').open) $('#host-dialog').showModal();
   }
 
   function filteredScan() {
     visible = filterHosts();
-    return { ...current(), name: `${current().name}${t(" · exported scope")}`, command: '', hosts: visible.map(({ sourceIndex, ...host }) => ({ ...host, extra: '' })) };
+    return { ...current(), name: `${current().name}${t(" · exported scope")}`, command: '', xml: '', hosts: visible.map(({ sourceIndex, ...host }) => ({ ...host, extra: '', portSummaryXml: '' })) };
   }
 
   function download(contents, type, name) {
@@ -745,6 +794,7 @@ body.resizing-columns,body.resizing-columns *{cursor:col-resize!important;user-s
     root.querySelector('#filter-chips').innerHTML = '';
     root.querySelector('#notice').textContent = '';
     root.querySelector('#host-detail').innerHTML = '';
+    root.querySelector('#scan-xml-details')?.remove();
     root.querySelector('#host-title').textContent = '';
     root.querySelector('#host-dialog').removeAttribute('open');
     root.querySelector('#scan').innerHTML = '';
