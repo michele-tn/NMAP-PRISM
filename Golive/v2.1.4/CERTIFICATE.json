@@ -1,0 +1,24 @@
+﻿{
+    "Subject":  "CN=HostName Discovery Local Code Signing",
+    "Thumbprint":  "E19C6E861EE1B39F2694A57A1F0996AFA9EEB074",
+    "NotBefore":  "2026-09-29T13:14:47.0000000Z",
+    "NotAfter":  "2028-09-29T13:24:43.0000000Z",
+    "Purpose":  "Code signing",
+    "SignatureAlgorithm":  "RSA-3072 / SHA-256",
+    "ChecksumAlgorithm":  "SHA3-256",
+    "PrivateKey":  "Non-exportable; kept in CurrentUser\\My on the build machine",
+    "Trust":  "Self-signed; not automatically trusted by Windows",
+    "Timestamp":  "None",
+    "Signatures":  [
+                       {
+                           "File":  "HostNameDiscovery-2.1.4.exe",
+                           "Status":  "UnknownError",
+                           "Message":  "Una catena di certificati elaborata correttamente termina in un certificato radice proveniente da un\u0027Autorità di certificazione non presente nell\u0027elenco locale"
+                       },
+                       {
+                           "File":  "HostNameDiscovery-2.1.4.ps1",
+                           "Status":  "UnknownError",
+                           "Message":  "Una catena di certificati elaborata correttamente termina in un certificato radice proveniente da un\u0027Autorità di certificazione non presente nell\u0027elenco locale"
+                       }
+                   ]
+}
