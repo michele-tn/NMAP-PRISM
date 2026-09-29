@@ -8,9 +8,26 @@ An interactive Windows desktop workspace for turning IPv4 discovery results into
 
 **Windows x64 · WPF desktop GUI · Quick / Standard / Deep · Four report formats**
 
-[**Get the v2.1.2 package**](Golive/v2.1.2/HostNameDiscovery-2.1.2-win-x64.zip) · [Executable](Golive/v2.1.2/HostNameDiscovery-2.1.2.exe) · [PowerShell source](Golive/v2.1.2/HostNameDiscovery-2.1.2.ps1)
+[**Get the v2.1.2 package**](https://github.com/michele-tn/NMAP-PRISM/raw/refs/heads/main/Golive/v2.1.2/HostNameDiscovery-2.1.2-win-x64.zip?download=1) · [Executable](https://github.com/michele-tn/NMAP-PRISM/raw/refs/heads/main/Golive/v2.1.2/HostNameDiscovery-2.1.2.exe?download=1) · [PowerShell source](https://github.com/michele-tn/NMAP-PRISM/raw/refs/heads/main/Golive/v2.1.2/HostNameDiscovery-2.1.2.ps1?download=1)
 
 > The banner is an illustrated product overview, not an application screenshot. This presentation is in English; the v2.1.2 desktop interface currently includes Italian labels.
+
+## Explore Nmap XML online
+
+[**Open NMAP-PRISM online**](https://michele-tn.github.io/NMAP-PRISM/)
+
+Already have a Nmap XML scan? Open the browser-based viewer to explore host inventories, services and ports, a port matrix, relationships, and scan comparisons.
+
+1. Open **NMAP-PRISM online** and select **English** from the language menu.
+2. Click **Import scans** or **Choose files**, or drag your Nmap XML file into the import area.
+3. Explore the report views and filter by host, service, protocol, or port state.
+4. Export the current selection as an **HTML report**, **CSV**, or **JSON**, or use **Print / PDF**.
+
+You can also click **Open demo** to try the viewer with synthetic data. The viewer displays existing scan results; it does not run a network scan. Its interface states that files are processed locally in your browser, without an account or upload.
+
+[![NMAP-PRISM online in English, displaying its built-in synthetic demo with host counts, port charts, service distribution, and host inventory.](docs/assets/nmap-prism-online.png)](https://michele-tn.github.io/NMAP-PRISM/)
+
+*Actual screenshot of the online viewer using its built-in demo. The hosts and addresses shown are synthetic.*
 
 ## Your network, in focus
 
@@ -42,8 +59,8 @@ Available information depends on DNS records, responding services, firewall rule
 
 ## Start with the GUI
 
-1. Download and extract the [v2.1.2 ZIP](Golive/v2.1.2/HostNameDiscovery-2.1.2-win-x64.zip).
-2. Review the [checksums](Golive/v2.1.2/SHA3-256SUMS.txt) and certificate information below.
+1. Download and extract the [v2.1.2 ZIP](https://github.com/michele-tn/NMAP-PRISM/raw/refs/heads/main/Golive/v2.1.2/HostNameDiscovery-2.1.2-win-x64.zip?download=1).
+2. Review the [checksums](https://github.com/michele-tn/NMAP-PRISM/raw/refs/heads/main/Golive/v2.1.2/SHA3-256SUMS.txt?download=1) and certificate information below.
 3. Launch `HostNameDiscovery-2.1.2.exe`, or run the PowerShell source:
 
    ```powershell
@@ -72,12 +89,12 @@ The GUI collects data through its own probes. XML output does not imply that Nma
 
 | Artifact | Contents |
 | --- | --- |
-| [Windows x64 executable](Golive/v2.1.2/HostNameDiscovery-2.1.2.exe) | Packaged GUI with an embedded multi-resolution icon. |
-| [Complete ZIP](Golive/v2.1.2/HostNameDiscovery-2.1.2-win-x64.zip) | EXE, PS1, ICO, public certificate, certificate metadata, and release notes. |
-| [Public signing certificate](Golive/v2.1.2/HostNameDiscovery-CodeSigning.cer) | Public certificate only; no private key. |
-| [SHA3-256 checksums](Golive/v2.1.2/SHA3-256SUMS.txt) | One consolidated checksum list, computed after signing. |
-| [Certificate details](Golive/v2.1.2/CERTIFICATE.json) | Thumbprint, validity dates, and recorded Windows signature status. |
-| [Release notes](Golive/v2.1.2/RELEASE.txt) | Packaging and signature information. |
+| [Windows x64 executable](https://github.com/michele-tn/NMAP-PRISM/raw/refs/heads/main/Golive/v2.1.2/HostNameDiscovery-2.1.2.exe?download=1) | Packaged GUI with an embedded multi-resolution icon. |
+| [Complete ZIP](https://github.com/michele-tn/NMAP-PRISM/raw/refs/heads/main/Golive/v2.1.2/HostNameDiscovery-2.1.2-win-x64.zip?download=1) | EXE, PS1, ICO, public certificate, certificate metadata, and release notes. |
+| [Public signing certificate](https://github.com/michele-tn/NMAP-PRISM/raw/refs/heads/main/Golive/v2.1.2/HostNameDiscovery-CodeSigning.cer?download=1) | Public certificate only; no private key. |
+| [SHA3-256 checksums](https://github.com/michele-tn/NMAP-PRISM/raw/refs/heads/main/Golive/v2.1.2/SHA3-256SUMS.txt?download=1) | One consolidated checksum list, computed after signing. |
+| [Certificate details](https://github.com/michele-tn/NMAP-PRISM/raw/refs/heads/main/Golive/v2.1.2/CERTIFICATE.json?download=1) | Thumbprint, validity dates, and recorded Windows signature status. |
+| [Release notes](https://github.com/michele-tn/NMAP-PRISM/raw/refs/heads/main/Golive/v2.1.2/RELEASE.txt?download=1) | Packaging and signature information. |
 
 The EXE and PS1 carry **SHA-256 Authenticode signatures** made with a **self-signed RSA-3072 code-signing certificate**. Windows does not automatically trust this certificate, and it does not establish SmartScreen reputation. The signatures have no trusted timestamp. The private key stays on the build machine and is excluded from the package.
 
