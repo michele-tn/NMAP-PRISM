@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="560" viewBox="0 0 1280 560" role="img" aria-labelledby="title description">
+  <title id="title">HostName Discovery — Discover. Inspect. Export.</title>
+  <desc id="description">Illustrated product overview: discover IPv4 targets, inspect hostnames and services, and export XML, JSON, CSV and HTML. Windows desktop GUI version 2.1.2.</desc>
+  <defs>
+    <linearGradient id="background" x2="1" y2="1"><stop stop-color="#0c1429"/><stop offset="1" stop-color="#183858"/></linearGradient>
+    <linearGradient id="accent"><stop stop-color="#64e5c2"/><stop offset="1" stop-color="#75baff"/></linearGradient>
+  </defs>
+  <rect width="1280" height="560" rx="24" fill="url(#background)"/>
+  <circle cx="1200" cy="70" r="260" fill="#4fa4de" opacity=".05"/>
+  <circle cx="1240" cy="70" r="180" fill="none" stroke="#649bc4" opacity=".15"/>
+  <g font-family="Segoe UI,Arial,sans-serif">
+    <rect x="48" y="38" width="198" height="30" rx="15" fill="#203b50"/>
+    <text x="147" y="59" text-anchor="middle" fill="#8ef1d5" font-size="13" font-weight="700" letter-spacing="1.4">NMAP-PRISM / GUI</text>
+    <text x="48" y="133" fill="#f4f8ff" font-size="48" font-weight="700">Your network, in focus.</text>
+    <text x="50" y="176" fill="#bbccdf" font-size="21">From IPv4 targets to a searchable, shareable host inventory.</text>
+    <rect x="49" y="211" width="118" height="30" rx="15" fill="#285446"/>
+    <text x="108" y="232" text-anchor="middle" fill="#b1f6dc" font-size="14">Quick</text>
+    <rect x="178" y="211" width="118" height="30" rx="15" fill="#24445e"/>
+    <text x="237" y="232" text-anchor="middle" fill="#c7e4ff" font-size="14">Standard</text>
+    <rect x="307" y="211" width="118" height="30" rx="15" fill="#3b3e60"/>
+    <text x="366" y="232" text-anchor="middle" fill="#e0dcff" font-size="14">Deep</text>
+    <g fill="#172a40" stroke="#36506b">
+      <rect x="48" y="274" width="376" height="202" rx="18"/>
+      <rect x="452" y="274" width="376" height="202" rx="18"/>
+      <rect x="856" y="274" width="376" height="202" rx="18"/>
+    </g>
+    <g font-size="14" font-weight="700" fill="#80dfca">
+      <text x="74" y="310">01 / DISCOVER</text>
+      <text x="478" y="310">02 / INSPECT</text>
+      <text x="882" y="310">03 / EXPORT</text>
+    </g>
+    <g font-size="25" font-weight="600" fill="#f3f7ff">
+      <text x="74" y="354">Start with your targets</text>
+      <text x="478" y="354">Find the useful details</text>
+      <text x="882" y="354">Keep findings moving</text>
+    </g>
+    <g font-size="17" fill="#b9cce0">
+      <text x="74" y="390">IPv4 addresses, ranges and CIDR</text>
+      <text x="74" y="418">Local subnet discovery</text>
+      <text x="74" y="446">Progress and cancellation</text>
+      <text x="478" y="390">Hostnames and naming sources</text>
+      <text x="478" y="418">Ports, services and host details</text>
+      <text x="478" y="446">Search, filters and baselines</text>
+      <text x="882" y="390">XML / JSON / CSV / HTML</text>
+      <text x="882" y="418">Structured inventory reports</text>
+      <text x="882" y="446">Ready for further analysis</text>
+    </g>
+    <rect x="49" y="505" width="42" height="4" rx="2" fill="url(#accent)"/>
+    <text x="105" y="513" fill="#abc1d8" font-size="14">Windows desktop · Light and dark themes · v2.1.2</text>
+    <text x="1231" y="513" text-anchor="end" fill="#91aac4" font-size="12">ILLUSTRATED PRODUCT OVERVIEW</text>
+  </g>
+</svg>
